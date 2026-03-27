@@ -17,8 +17,12 @@ export default function Home() {
   const [quoteIndex, setQuoteIndex] = useState(0);
 
   useEffect(() => {
-    // Initial paint time to avoid hydration mismatch, though we start null
-    setTime(new Date());
+    // Defer the initial state update to avoiding calling setState synchronously
+    // within the effect body, which prevents cascading renders.
+    const initialTimer = setTimeout(() => {
+      setTime(new Date());
+    }, 0);
+
     const timer = setInterval(() => {
       setTime(new Date());
     }, 1000);
@@ -28,6 +32,7 @@ export default function Home() {
     }, 10000);
 
     return () => {
+      clearTimeout(initialTimer);
       clearInterval(timer);
       clearInterval(quoteTimer);
     };
