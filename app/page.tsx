@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Terminal, Cpu, Activity, Clock as ClockIcon, Server } from "lucide-react";
+import { Terminal, Cpu, Clock as ClockIcon, Server, Database } from "lucide-react";
+import { getDatabaseStatus } from "./actions";
 
 export default function Home() {
   const [time, setTime] = useState<Date | null>(null);
@@ -15,8 +16,29 @@ export default function Home() {
   ];
   
   const [quoteIndex, setQuoteIndex] = useState(0);
+  
+  interface DbStatus {
+    status: string;
+    version: string | null;
+    database: string | null;
+    latency: number;
+    error?: string;
+  }
+  const [dbStatus, setDbStatus] = useState<DbStatus | null>(null);
 
   useEffect(() => {
+    // DB Polling
+    const fetchDb = async () => {
+      try {
+        const res = await getDatabaseStatus();
+        setDbStatus(res);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchDb();
+    const dbPollTimer = setInterval(fetchDb, 5000);
+
     // Defer the initial state update to avoiding calling setState synchronously
     // within the effect body, which prevents cascading renders.
     const initialTimer = setTimeout(() => {
@@ -35,6 +57,7 @@ export default function Home() {
       clearTimeout(initialTimer);
       clearInterval(timer);
       clearInterval(quoteTimer);
+      clearInterval(dbPollTimer);
     };
   }, [quotes.length]);
 
@@ -68,7 +91,7 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
           
           {/* Main Clock Card - spans 2 cols */}
-          <div className="glass-panel p-8 md:p-12 rounded-3xl col-span-1 md:col-span-2 flex flex-col justify-center relative overflow-hidden group hover:bg-white/[0.04] transition-colors duration-500">
+          <div className="glass-panel p-8 md:p-12 rounded-3xl col-span-1 md:col-span-2 flex flex-col justify-center relative overflow-hidden group hover:bg-white/4 transition-colors duration-500">
             <div className="absolute top-6 left-6 text-white/5 group-hover:text-indigo-400/10 transition-colors duration-700">
               <ClockIcon className="w-32 h-32 md:w-48 md:h-48" strokeWidth={1} />
             </div>
@@ -89,32 +112,34 @@ export default function Home() {
           {/* Quick Stats Column */}
           <div className="flex flex-col gap-6 col-span-1 border-gray-100">
             
-            <div className="glass-panel p-6 rounded-3xl flex-1 flex flex-col relative overflow-hidden">
-               <div className="absolute -right-6 -top-6 text-blue-500/10">
-                 <Activity className="w-32 h-32" strokeWidth={1} />
+            <div className="glass-panel p-6 rounded-3xl flex-1 flex flex-col relative overflow-hidden group hover:bg-white/4 transition-colors duration-500">
+               <div className="absolute -right-6 -top-6 text-emerald-500/10 group-hover:text-emerald-500/20 transition-colors duration-500">
+                 <Database className="w-32 h-32" strokeWidth={1} />
                </div>
                <div className="relative z-10 flex items-center gap-2 mb-6 text-slate-300">
-                  <Activity className="w-5 h-5 text-blue-400" />
-                  <h3 className="font-semibold tracking-wide">Server Pulse</h3>
+                  <Database className={`w-5 h-5 ${dbStatus?.status === 'online' ? 'text-emerald-400' : 'text-slate-500'}`} />
+                  <h3 className="font-semibold tracking-wide">Database Pulse</h3>
                </div>
                <div className="relative z-10 flex-1 flex flex-col justify-center gap-6">
-                 <div className="group">
+                 <div className="group/stat">
                    <div className="flex justify-between items-center mb-2">
-                     <span className="text-slate-400 text-sm font-medium">Response Target</span>
-                     <span className="text-blue-300 font-mono bg-blue-500/10 px-2 py-1 rounded text-xs border border-blue-500/20 group-hover:bg-blue-500/20 transition-colors">&lt; 50ms</span>
+                     <span className="text-slate-400 text-sm font-medium">Status</span>
+                     <span className={`font-mono px-2 py-1 rounded text-xs border transition-colors ${dbStatus?.status === 'online' ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20 group-hover/stat:bg-emerald-500/20' : 'text-red-300 bg-red-500/10 border-red-500/20'}`}>
+                       {dbStatus ? dbStatus.status.toUpperCase() : 'CONNECTING...'}
+                     </span>
                    </div>
-                   <div className="w-full bg-slate-800/50 rounded-full h-1.5 overflow-hidden">
-                     <div className="bg-gradient-to-r from-blue-500 to-indigo-500 w-[85%] h-full rounded-full"></div>
+                   <div className="text-xs text-slate-500 truncate h-4 mb-2">
+                     {dbStatus?.database ? `DB: ${dbStatus.database}` : 'Verifying connection...'}
                    </div>
                  </div>
                  
-                 <div className="group">
+                 <div className="group/stat">
                    <div className="flex justify-between items-center mb-2">
-                     <span className="text-slate-400 text-sm font-medium">Uptime Target</span>
-                     <span className="text-emerald-300 font-mono bg-emerald-500/10 px-2 py-1 rounded text-xs border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-colors">99.99%</span>
+                     <span className="text-slate-400 text-sm font-medium">Query Latency</span>
+                     <span className="text-blue-300 font-mono bg-blue-500/10 px-2 py-1 rounded text-xs border border-blue-500/20 group-hover/stat:bg-blue-500/20">{dbStatus && dbStatus.status === 'online' ? `${dbStatus.latency}ms` : '--'}</span>
                    </div>
                    <div className="w-full bg-slate-800/50 rounded-full h-1.5 overflow-hidden">
-                     <div className="bg-gradient-to-r from-emerald-500 to-teal-400 w-[99.9%] h-full rounded-full"></div>
+                     <div className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-1000 ease-out" style={{ width: dbStatus?.status === 'online' ? `${Math.max(5, 100 - (dbStatus.latency / 2))}%` : '0%' }}></div>
                    </div>
                  </div>
                </div>
