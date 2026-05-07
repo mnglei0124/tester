@@ -16,7 +16,7 @@ export async function getDatabaseStatus() {
       latency: Math.round(end - start),
     };
   } catch (error) {
-    console.error('Database connection error:', error);
+    // Silent fail as requested by user
     return {
       status: 'offline',
       version: null,
