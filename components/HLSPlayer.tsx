@@ -57,10 +57,10 @@ export default function HLSPlayer({ src }: Props) {
       maxMaxBufferLength: 60,
       enableWorker: true,
       // Automatic Fallback / Retry Logic
-      fragLoadingRetryCount: 3,
+      fragLoadingMaxRetry: 3,
       fragLoadingMaxRetryTimeout: 1000,
-      levelLoadingRetryCount: 3,
-      manifestLoadingRetryCount: 3,
+      levelLoadingMaxRetry: 3,
+      manifestLoadingMaxRetry: 3,
       // CORS Handling
       xhrSetup: (xhr, url) => {
         xhr.withCredentials = false; // Set to true if your Varnish/CDN requires credentials (cookies/auth)
@@ -91,8 +91,19 @@ export default function HLSPlayer({ src }: Props) {
 
       // Buffer Length Monitoring
       const bufferInterval = setInterval(() => {
-        if (hls.mainLoop) {
-          const len = hls.mainLoop.bufferLen || 0;
+        const video = videoRef.current;
+        if (video) {
+          const buffered = video.buffered;
+          const currentTime = video.currentTime;
+          let len = 0;
+          
+          for (let i = 0; i < buffered.length; i++) {
+            if (currentTime >= buffered.start(i) && currentTime <= buffered.end(i)) {
+              len = buffered.end(i) - currentTime;
+              break;
+            }
+          }
+
           setBufferLength(Number(len.toFixed(2)));
           
           // Latency visualization logic
